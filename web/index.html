@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Analyzer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Phishing URL Analyzer</h1>
+        
+        <div class="analysis-section">
+            <h2>Analyze URL</h2>
+            <div class="input-group">
+                <input type="text" id="urlInput" placeholder="Enter URL to analyze">
+                <button onclick="analyzeURL()">Analyze</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="queryInput" placeholder="Ask a specific question (optional)">
+            </div>
+        </div>
+
+        <div class="results-section" id="results" style="display: none;">
+            <h2>Analysis Results</h2>
+            <div class="result-card">
+                <h3>VirusTotal Analysis</h3>
+                <div id="vtResults"></div>
+            </div>
+            
+            <div class="result-card">
+                <h3>AI Analysis</h3>
+                <div id="aiAnalysis"></div>
+            </div>
+
+            <div class="result-card" id="additionalResponse" style="display: none;">
+                <h3>Additional Information</h3>
+                <div id="additionalResponseContent"></div>
+            </div>
+        </div>
+
+        <div class="chat-section">
+            <h2>Chat with AI Assistant</h2>
+            <div class="chat-container" id="chatContainer"></div>
+            <div class="input-group">
+                <input type="text" id="chatInput" placeholder="Ask a question...">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+            <button class="clear-button" onclick="clearContext()">Clear Chat History</button>
+        </div>
+    </div>
+
+    <script>
+        async function analyzeURL() {
+            const url = document.getElementById('urlInput').value;
+            const query = document.getElementById('queryInput').value;
+            
+            if (!url) {
+                alert('Please enter a URL to analyze');
+                return;
+            }
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url, query }),
+                });
+
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    displayResults(data);
+                    document.getElementById('results').style.display = 'block';
+                    
+                    // Mostrar el análisis conciso en el chat
+                    if (data.concise_analysis) {
+                        appendMessage('assistant', data.concise_analysis);
+                    }
+                } else {
+                    alert('Error analyzing URL: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function displayResults(data) {
+            // Display VirusTotal results
+            const vtResults = document.getElementById('vtResults');
+            const vt = data.vt_analysis;
+            vtResults.innerHTML = `
+                <p><strong>Detection Rate:</strong> ${vt.detection_rate}</p>
+                <p><strong>Positive Detections:</strong> ${vt.positive_detections}/${vt.total_scans}</p>
+                <p><strong>Scan Date:</strong> ${vt.scan_date}</p>
+            `;
+
+            if (vt.domain_info) {
+                vtResults.innerHTML += `
+                    <h4>Domain Information:</h4>
+                    <pre>${JSON.stringify(vt.domain_info, null, 2)}</pre>
+                `;
+            }
+
+            // Display AI Analysis
+            document.getElementById('aiAnalysis').innerHTML = `
+                <p>${data.ai_analysis.replace(/\n/g, '<br>')}</p>
+            `;
+
+            // Display additional response if present
+            const additionalResponse = document.getElementById('additionalResponse');
+            if (data.additional_response) {
+                document.getElementById('additionalResponseContent').innerHTML = 
+                    `<p>${data.additional_response.replace(/\n/g, '<br>')}</p>`;
+                additionalResponse.style.display = 'block';
+            } else {
+                additionalResponse.style.display = 'none';
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value;
+            
+            if (!message) return;
+            
+            appendMessage('user', message);
+            input.value = '';
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: message }),
+                });
+
+                const data = await response.json();
+                appendMessage('assistant', data.response);
+            } catch (error) {
+                appendMessage('error', 'Error: ' + error.message);
+            }
+        }
+
+        function appendMessage(role, content) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${role}`;
+            messageDiv.innerHTML = `<p>${content.replace(/\n/g, '<br>')}</p>`;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function clearContext() {
+            try {
+                await fetch('/clear-context', { method: 'POST' });
+                const chatContainer = document.getElementById('chatContainer');
+                chatContainer.innerHTML = '';
+                appendMessage('system', 'Chat history cleared');
+            } catch (error) {
+                appendMessage('error', 'Error clearing chat history: ' + error.message);
+            }
+        }
+
+        // Handle Enter key in chat input
+        document.getElementById('chatInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
