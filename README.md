@@ -100,4 +100,4 @@ Si deseas contribuir a este proyecto:
 
 ## Licencia
 
-Este proyecto está bajo la Licencia MIT - ver el archivo `LICENSE` para más detalles.
+Ver el archivo `LICENSE` para más detalles.
